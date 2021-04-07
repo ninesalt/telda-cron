@@ -9,10 +9,10 @@ import (
 )
 
 type Job struct {
-	ID        string
-	Timeout   time.Duration
-	Frequency time.Duration
-	Function  func(ctx context.Context, done chan int)
+	ID       string
+	Ticker   *time.Ticker
+	Timeout  time.Duration
+	Function func(ctx context.Context, done chan int)
 }
 
 // This function just prints OP1 and then after 6 seconds prints
@@ -58,13 +58,14 @@ func New(ID, frequency, runtime string,
 		panic(err)
 	}
 
-	j := Job{ID: ID, Timeout: r, Frequency: f, Function: implementation}
+	ticker := time.NewTicker(f)
+	j := Job{ID: ID, Timeout: r, Function: implementation, Ticker: ticker}
 	log.Printf("Created job %#v with frequency %v and timeout %v", ID, f, r)
 	return j
 }
 
 func (j Job) Run() {
-	for range time.Tick(j.Frequency) {
+	for range j.Ticker.C {
 		instanceID := rand.Intn(10000)
 		start := time.Now()
 		log.Printf("Job %#v IID=%v executing...", j.ID, instanceID)
@@ -87,15 +88,26 @@ func (j Job) Run() {
 	}
 }
 
+// Stop the ticker from running which stops next ticks of the job
+// does not stop job instances that already started
+func (j Job) Stop() {
+	j.Ticker.Stop()
+}
+
 func main() {
 	rand.Seed(time.Now().UnixNano())
 
+	//The below code is all for testing and example purposes
+
 	// create a new job given its name, frequency, timeout
 	// and the function it should run
+
+	// this will timeout
 	job1 := New("my-first-job", "1s", "5s", func(ctx context.Context, done chan int) {
 		withDelay(ctx, done)
 	})
 
+	// this wont timeout
 	job2 := New("my-second-job", "3s", "10s", func(ctx context.Context, done chan int) {
 		withoutDelay(ctx, done)
 	})
